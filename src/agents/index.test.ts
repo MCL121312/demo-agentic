@@ -19,9 +19,9 @@ vi.mock('@langchain/openai', () => ({
 }));
 
 // mock 必须在最顶层声明，import 写在 mock 之后
-const { ollamaAgent } = await import('./index.ts');
+const { createAgent } = await import('./index.ts');
 
-describe('ollamaAgent', () => {
+describe('createAgent', () => {
   beforeEach(() => {
     mockInvoke.mockReset();
     mockStream.mockReset();
@@ -38,7 +38,7 @@ describe('ollamaAgent', () => {
       })(),
     );
 
-    const agent = ollamaAgent();
+    const agent = createAgent('test-model');
     const events: AgentEvent[] = [];
     for await (const event of agent.run('你好')) {
       events.push(event);
@@ -65,7 +65,7 @@ describe('ollamaAgent', () => {
       })(),
     );
 
-    const agent = ollamaAgent();
+    const agent = createAgent('test-model');
     const events: AgentEvent[] = [];
     for await (const event of agent.run('现在几点了？')) {
       events.push(event);
@@ -90,7 +90,7 @@ describe('ollamaAgent', () => {
       })(),
     );
 
-    const agent = ollamaAgent();
+    const agent = createAgent('test-model');
     const events: AgentEvent[] = [];
     for await (const event of agent.run('触发未知工具')) {
       events.push(event);
@@ -106,7 +106,7 @@ describe('ollamaAgent', () => {
   describe('多轮对话与 session 隔离', () => {
     /** 辅助：跑完一轮对话，丢弃事件，只关心副作用（消息历史） */
     async function runOnce(
-      agent: ReturnType<typeof ollamaAgent>,
+      agent: ReturnType<typeof createAgent>,
       message: string,
       sessionId: string,
       reply: string,
@@ -123,7 +123,7 @@ describe('ollamaAgent', () => {
     }
 
     it('同一 sessionId 的第二轮 invoke 携带第一轮的完整历史', async () => {
-      const agent = ollamaAgent();
+      const agent = createAgent('test-model');
 
       // 第一轮：告知名字
       await runOnce(agent, '我叫张三', 'user_001', '你好，张三！');
@@ -142,7 +142,7 @@ describe('ollamaAgent', () => {
     });
 
     it('不同 sessionId 的历史互不影响', async () => {
-      const agent = ollamaAgent();
+      const agent = createAgent('test-model');
 
       // session A 先跑一轮
       await runOnce(agent, 'A 的消息', 'session_a', '收到 A');
@@ -161,7 +161,7 @@ describe('ollamaAgent', () => {
 
     it('新 agent 实例（模拟服务重启）不保留任何 session 历史', async () => {
       // 第一个实例跑一轮，建立历史
-      const agent1 = ollamaAgent();
+      const agent1 = createAgent('test-model');
       await runOnce(agent1, '我叫张三', 'user_001', '你好，张三！');
 
       // 重置 mock 调用记录，模拟新进程启动
@@ -169,7 +169,7 @@ describe('ollamaAgent', () => {
       mockStream.mockReset();
 
       // 新实例使用相同 sessionId，历史应已清空
-      const agent2 = ollamaAgent();
+      const agent2 = createAgent('test-model');
       await runOnce(agent2, '我叫什么名字？', 'user_001', '你好，请问你是谁？');
 
       // mock 记录引用，断言时数组已追加 AI 回复，共 3 条：

@@ -1,2 +1,2 @@
 export type { AgentEvent } from './types.ts';
-export { ollamaAgent } from './ollama/index.ts';
+export { createAgent } from './openai-compatible/index.ts';
