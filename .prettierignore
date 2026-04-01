@@ -1,0 +1,10 @@
+# Ignore artifacts:
+build
+src/data/*
+src/test/*
+dist/*
+*.d.ts
+*.yaml
+*.md
+package-lock.json
+*.zip
