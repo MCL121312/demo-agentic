@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "dev": "PORT=4000 node --watch --experimental-strip-types --experimental-transform-types app.ts",
+    "dev": "PORT=4000 node --env-file=.env --watch --experimental-strip-types --experimental-transform-types app.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -17,6 +17,7 @@
     "@hono/node-server": "^1.19.12",
     "@langchain/core": "^1.1.38",
     "@langchain/ollama": "^1.2.6",
+    "@langchain/openai": "^1.4.1",
     "hono": "^4.12.9",
     "langchain": "^1.2.39",
     "ollama": "^0.6.3",

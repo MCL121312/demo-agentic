@@ -3,14 +3,25 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { ollamaAgent } from '../../agents/index.ts';
 
-const agent = ollamaAgent();
+/**
+ * 按 model 名缓存 agent 实例。
+ * 不同 model 对应不同的 LLM 绑定，需要各自的实例。
+ */
+const agentCache = new Map<string, ReturnType<typeof ollamaAgent>>();
+
+function getAgent(model: string) {
+  if (!agentCache.has(model)) {
+    agentCache.set(model, ollamaAgent(model));
+  }
+  return agentCache.get(model)!;
+}
 
 const chatRouter = new Hono();
 
 const chatBodySchema = z.object({
   message: z.string().min(1),
   sessionId: z.string().optional().default('default'),
-  model: z.string().optional().default('qwen3.5:2b'),
+  model: z.string().optional().default('qwen3.5:4b'),
 });
 
 /** 构造 OpenAI chat.completion.chunk 结构 */
@@ -33,12 +44,17 @@ chatRouter.post('/', async c => {
     return c.json({ error: parsed.error.issues }, 400);
   }
 
-  const { message, model } = parsed.data;
+  const { message, sessionId, model } = parsed.data;
   const id = `chatcmpl-${Date.now()}`;
+  const agent = getAgent(model);
+
+  console.log(`[${id}] session=${sessionId} model=${model}`);
+  console.log(`[${id}] user: ${message}`);
 
   return streamSSE(c, async stream => {
-    for await (const event of agent.run(message)) {
+    for await (const event of agent.run(message, sessionId)) {
       if (event.type === 'tool_call') {
+        console.log(`[${id}] tool_call: ${event.name}`, event.args);
         // 工具调用：使用自定义 SSE event 名，data 沿用 OpenAI tool_calls delta 格式
         await stream.writeSSE({
           event: 'tool_call',
@@ -56,18 +72,32 @@ chatRouter.post('/', async c => {
           ),
         });
       } else if (event.type === 'tool_result') {
+        console.log(`[${id}] tool_result: ${event.name} →`, event.result);
         // 工具结果：使用自定义 SSE event 名，data 沿用 OpenAI tool role delta 格式
         await stream.writeSSE({
           event: 'tool_result',
           data: JSON.stringify(makeChunk(id, model, { role: 'tool', content: event.result })),
         });
-      } else if (event.type === 'final') {
-        // 最终回答：标准 OpenAI content delta，随后发 finish_reason 和 [DONE]
+      } else if (event.type === 'token') {
+        // 逐 token 流式输出：标准 OpenAI content delta
         await stream.writeSSE({
           data: JSON.stringify(makeChunk(id, model, { role: 'assistant', content: event.content })),
         });
+      } else if (event.type === 'final') {
+        console.log(`[${id}] done`);
+        // 流式输出结束标志：发送 finish_reason 和 [DONE]
         await stream.writeSSE({
           data: JSON.stringify(makeChunk(id, model, {}, 'stop')),
+        });
+        await stream.writeSSE({ data: '[DONE]' });
+      } else if (event.type === 'error') {
+        console.error(`[${id}] error:`, event.message);
+        // 错误事件：发送后结束流
+        await stream.writeSSE({
+          event: 'error',
+          data: JSON.stringify(
+            makeChunk(id, model, { role: 'assistant', content: event.message }, 'stop'),
+          ),
         });
         await stream.writeSSE({ data: '[DONE]' });
       }

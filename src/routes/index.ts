@@ -11,9 +11,12 @@ export function printStartupInfo() {
   const localUrl = `http://localhost:${PORT}`;
   const networkUrl = `http://${getNetworkIP()}:${PORT}`;
 
+  const ollamaUrl = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
+
   console.log('🚀 服务已启动');
   console.log(`本地:   ${localUrl}`);
   console.log(`网络:   ${networkUrl}`);
+  console.log(`Ollama: ${ollamaUrl}`);
 }
 
 /** 获取本机网络 IP */
